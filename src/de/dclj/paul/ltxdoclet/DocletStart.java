@@ -24,15 +24,12 @@ public class DocletStart
      */
     public static boolean start(RootDoc root)
     {
-        root.printNotice("ltxdoclet, (c) Paul Ebermann 2001, 2010");
+        root.printNotice("ltxdoclet,\n(c) Paul Ebermann 2001, 2010\n(c) Simon Peeters 2012");
         try
             {
                 configuration().setOptions(root);
                 // DocletStart s = new DocletStart();
                 //              configuration().root.printNotice("Lade MainFileWriter ...");
-                if (configuration().includeSource) {
-                    configuration().startCompiler();
-                }
                 new MainFileWriter().writeDoku();
                 configuration().root.printNotice("Fertig.");
                 configuration().root.printNotice("Fehler: " + configuration().wasError);

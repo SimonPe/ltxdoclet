@@ -1,9 +1,12 @@
 package de.dclj.paul.ltxdoclet;
 
-import com.sun.javadoc.*;
-import java.io.*;
-import java.util.*;
 import java.awt.Color;
+import java.util.ArrayDeque;
+import java.util.Deque;
+import java.util.HashMap;
+import java.util.Hashtable;
+import java.util.Map;
+import java.util.StringTokenizer;
 
 /**
  * Ein Konverter von HTML zu LaTeX.
@@ -520,7 +523,6 @@ public class HtmlKonverter {
                     Map<String,String> p = new HashMap<String, String>();
                     int idx = getTagAttrs( str, p, i+5 );
                     i = idx;
-                    String sz = p.get("size");
                     String col = p.get("color");
                     ret.append( "{" );
                     if( col != null ) {

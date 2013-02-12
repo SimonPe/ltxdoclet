@@ -1,24 +1,32 @@
 package de.dclj.paul.ltxdoclet;
 
-import com.sun.tools.doclets.*;
-import com.sun.javadoc.*;
-
-import java.io.*;
-import java.io.PrintWriter;
 import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStreamWriter;
-import java.io.FileOutputStream;
+import java.io.PrintWriter;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Set;
+
+import com.sun.javadoc.ClassDoc;
+import com.sun.javadoc.Doc;
+import com.sun.javadoc.ExecutableMemberDoc;
+import com.sun.javadoc.MemberDoc;
+import com.sun.javadoc.PackageDoc;
+import com.sun.javadoc.ParamTag;
+import com.sun.javadoc.ParameterizedType;
+import com.sun.javadoc.SeeTag;
+import com.sun.javadoc.Tag;
+import com.sun.javadoc.ThrowsTag;
+import com.sun.javadoc.Type;
+import com.sun.javadoc.TypeVariable;
+import com.sun.javadoc.WildcardType;
 //import javax.print.Doc;
 //import java.lang.reflect.ParameterizedType;
 //import javax.swing.text.html.HTML.Tag;
-import javax.lang.model.element.Element;
 //import javax.lang.model.type.TypeVariable;
 //import javax.lang.model.type.WildcardType;
-
-import java.util.Set;
-import java.util.HashSet;
-import java.util.Arrays;
 
 /**
  * Einige generelle Methoden zum Schreiben von LaTeX-Dokumenten.
@@ -50,20 +58,6 @@ public class LaTeXWriter
         println("   % | Dieses Programm stammt von Paul Ebermann.  |");
         println("   % \\--------------------------------------------/");
         println();
-    }
-
-    private String replace(String org, String sub1, String sub2)
-    {
-        StringBuffer buf = new StringBuffer(org);
-        int slen = sub1.length();
-        for (int i = 0; i < buf.length(); i++)
-            {
-                if(buf.substring(i, i + slen).equals(sub1))
-                    {
-                        buf.replace(i, i+slen, sub2);
-                    }
-            }
-        return buf.toString();
     }
 
     /**
@@ -208,7 +202,7 @@ public class LaTeXWriter
     }
 
     public void chapter(String prefix, Doc doc) {
-        chapter(prefix, doc, prefix + doc);
+        chapter(prefix, doc, doc.toString());
     }
 
 
@@ -217,9 +211,12 @@ public class LaTeXWriter
      */
     public void section(String name)
     {
-        println("\\section{" + asLaTeXString(name) + "}");
+        section(name,true);
     }
-
+    public void section(String name, boolean num)
+    {
+        println("\\section" + (num? "" : "*") + "{" + asLaTeXString(name) + "}");
+    }
     public void section(String prefix, Doc doc, String shortName)
     {
         String ref = configuration.toRefLabel(doc);
@@ -395,7 +392,7 @@ public class LaTeXWriter
 
     public void writeTypeParams(ParamTag[] tags) {
         if(tags.length > 0) {
-            println("\\item[Typparameter] ~");
+            println("\\item["+Translator.getString("Typeparameter")+"] ~");
             println("\\begin{description}");
             for(ParamTag pt : tags) {
                 writeParamTag(pt);
@@ -406,7 +403,7 @@ public class LaTeXWriter
 
     public void writeParams(ParamTag[] tags) {
         if(tags.length > 0) {
-            println("\\item[Parameter] ~");
+            println("\\item["+Translator.getString("Parameter")+"] ~");
             println("\\begin{description}");
             for(ParamTag pt : tags) {
                 writeParamTag(pt);
@@ -417,7 +414,7 @@ public class LaTeXWriter
 
     public void writeThrows(ThrowsTag[] tags) {
         if(tags.length > 0) {
-            println("\\item[Exceptions] ~");
+            println("\\item["+Translator.getString("Exceptions")+"] ~");
             println("\\begin{description}");
             for(ThrowsTag tt : tags) {
                 writeThrowsTag(tt);
@@ -437,7 +434,7 @@ public class LaTeXWriter
 
     public void writeSeeTags(SeeTag[] tags) {
         if(tags.length > 0) {
-            println("\\item[Siehe auch] ~");
+            println("\\item["+Translator.getString("SeeAlso")+"] ~");
             print("\\noprint"); // um das erste Komma wieder aufzuessen.
             for(SeeTag t : tags) {
                 print(", ");
@@ -529,16 +526,16 @@ public class LaTeXWriter
     public String tagName(Tag t) {
         String kind = t.kind();
         if (kind.equals("@throws"))
-            return "throws " + ((ThrowsTag)t).exceptionType();
+            return Translator.getString("throws") + " " + ((ThrowsTag)t).exceptionType();
         if (kind.equals("@see"))
-            return "Siehe auch";
+            return Translator.getString("SeeAlso");
         if (kind.equals("@return"))
-            return "Rückgabewert";
+            return Translator.getString("ReturnValue");
         if (kind.equals("@param")) {
             ParamTag pt = (ParamTag)t;
             if (pt.isTypeParameter())
-                return "Typeparameter " + pt.parameterName();
-            return "Parameter " + pt.parameterName();
+                return Translator.getString("Typeparameter") + " " + pt.parameterName();
+            return Translator.getString("Parameter") + " " + pt.parameterName();
         }
         return kind;
     }

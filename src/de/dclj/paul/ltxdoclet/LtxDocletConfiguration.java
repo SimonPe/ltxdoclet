@@ -2,403 +2,266 @@ package de.dclj.paul.ltxdoclet;
 
 //import com.sun.tools.doclets.internal.toolkit.*;
 //import com.sun.tools.doclets.formats.html.*;
-import com.sun.tools.doclets.*;
-import com.sun.javadoc.*;
-import java.util.*;
-import java.io.*;
 
-// Compiler- und Tree-API.
-import javax.tools.*;
-import com.sun.source.util.*;
-import com.sun.source.tree.*;
-
-import javax.lang.model.element.Element;
-
-import java.text.MessageFormat;
-
-import java.nio.charset.Charset;
 import java.io.File;
-import java.util.Collections;
-import java.util.HashMap;
-import javax.tools.JavaCompiler;
-import javax.tools.ToolProvider;
-import javax.tools.StandardJavaFileManager;
-import java.util.Set;
-import java.util.HashSet;
-import javax.tools.JavaFileObject;
-import javax.tools.JavaCompiler.CompilationTask;
-import java.util.Arrays;
-import java.util.List;
-import javax.lang.model.util.Types;
+import java.nio.charset.Charset;
+import java.text.MessageFormat;
 import java.util.ArrayList;
-import javax.lang.model.util.Elements;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.ResourceBundle;
+
+import com.sun.javadoc.ClassDoc;
+import com.sun.javadoc.Doc;
+import com.sun.javadoc.DocErrorReporter;
+import com.sun.javadoc.PackageDoc;
+import com.sun.javadoc.RootDoc;
+// Compiler- und Tree-API.
 
 /**
  * Konfiguration für unser Doclet.
  */
-public class LtxDocletConfiguration
+public class LtxDocletConfiguration {
+	public enum Options {
+		d(2), includesource(1), docencoding(2), doctitle(2), link(2, "link"), linkhtml(
+				2, "link"), linkoffline(3, "link"), linkofflinehtml(3, "link"), linkfootnotehtml(
+				4, "link"), linkendhtml(4, "link"), linkofflinefootnotehtml(3,
+				"link"), linkofflineendhtml(3, "link"), linkpdf(2, "link"), linkofflinepdf(
+				3, "link"), linkfootnotepdf(4, "link"), linkendpdf(4, "link"), pdf(
+				1), pdfonly(1),
 
-{
+		classpath(2, "javac"), sourcepath(2, "javac"), encoding(2, "javac"), source(
+				2, "javac");
 
-    /**
-     * Das Verzeichnis, in dem alle erzeugten Daten abgelegt werden sollen.
-     *
-     * Wird durch »-d« festgelegt.
-     */
-    public File destdir;
-    /**
-     * Die zu dokumentierende Software ist in diesem {@link RootDoc}-Objekt versteckt.
-     */
-    public RootDoc root;
+		public final int numArgs;
+		public final OptionKind kind;
 
-    /**
-     * Die Liste der Packages.
-     */
-    public PackageDoc[] packages;
+		Options(int num) {
+			this(num, "");
+		};
 
-    /**
-     * Der Titel des Dokumentes.
-     * Wird durch »-doctitle« festgelegt.
-     */
-    public String doctitle;
-
-    /**
-     * Das zu verwendende Encoding für die Ausgabe-Dateien.
-     * Wird durch »-docencoding« festgelegt, wie auch beim Standarddoclet.
-     */
-    public Charset docencoding;
-
-
-    /**
-     * Sollen Quelltexte mit aufgenommen werden?
-     * Falls kein Compiler gefunden wird, wird das
-     * automatisch auf false gesetzt, auch wenn die
-     * entsprechende Option gesetzt war.
-     */
-    public boolean includeSource = false;
-
-        
-    public List<Thread> threads = Collections.synchronizedList(new ArrayList<Thread>());
-    public boolean wasError;
-
-
-    Set<String> javacOptions =
-	new HashSet<String>(Arrays.asList(new String[]{
-		    "-classpath", "-sourcepath",
-		    "-encoding", "-source"
-		}));
-
-
-    /**
-     * Dieses Objekt erstellt Links.
-     */
-    public LinkCreator linker;
-    
-
-//     /**
-//      * Ansatz hier: ein JavacTask pro Datei.
-//      * Vorteil: Wir können den starten, wenn
-//      * wir ihn brauchen, anstatt erst eine
-//      * Liste aller Dateien zusammenzusammeln.
-//      *
-//      * Nachteil: wahrscheinlich dauert es so deutlich
-//      * länger als gleich einen Task für alle Dateien
-//      * zu starten, und nachher nur darauf zuzugreifen.
-//      *
-//      * Hmm, mal sehen.
-//      */
-//     Map<File, JavacTask> compilationMap =
-// 	new HashMap<File, JavacTask>();
-
-    /**
-     * Startet den Java-Compiler, um Quelltexte einfügen zu können.
-     * Diese Methode wird nur aufgerufen, wenn die entsprechende
-     * Option gesetzt war.
-     *
-     * Falls es beim Compilieren einen Fehler gibt, wird
-     * das Quelltextanzeigen abgeschaltet und ein Fehler ausgegeben.
-     */
-    void startCompiler() {
-	JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
-	if (compiler == null) {
-	    // kein Compiler da => kein Quelltext!
-	    root.printError("Es gibt keinen Java-Compiler.");
-	    this.includeSource = false;
-	    return;
+		Options(int num, String kind) {
+			this.numArgs = num;
+			OptionKind tmp;
+			try {
+				tmp = OptionKind.valueOf(kind);
+			} catch (Exception e) {
+				tmp = null;
+			}
+			this.kind = tmp;
+		}
+		public static Options fromString(String str){
+			if (str.charAt(0) == '-')
+				str = str.substring(1);
+			try {
+				return Options.valueOf(str);
+			} catch (Exception e) {
+				return null;
+			}
+		}
 	}
-	StandardJavaFileManager fileManager =
-	    // TODO: eventuell Encoding setzen?
-	    compiler.getStandardFileManager(null, null, null);
 
-	Set<File> files = new HashSet<File>();
-	for (ClassDoc klasse : root.classes()) {
-	    files.add(klasse.position().file());
+	public static enum OptionKind {
+		javac, link
 	}
-	for (PackageDoc pckg : root.specifiedPackages()) {
-	    if (pckg.position() != null) {
-		files.add(pckg.position().file());
-	    }
+
+	/**
+	 * Das Verzeichnis, in dem alle erzeugten Daten abgelegt werden sollen.
+	 * 
+	 * Wird durch »-d« festgelegt.
+	 */
+	public File destdir;
+	public File texdir;
+
+	/**
+	 * Die zu dokumentierende Software ist in diesem {@link RootDoc}-Objekt
+	 * versteckt.
+	 */
+	public RootDoc root;
+
+	/**
+	 * Die Liste der Packages.
+	 */
+	public PackageDoc[] packages;
+
+	/**
+	 * Das zu verwendende Encoding für die Ausgabe-Dateien. Wird durch
+	 * »-docencoding« festgelegt, wie auch beim Standarddoclet.
+	 */
+	public Charset docencoding;
+
+	public List<Thread> threads = Collections
+			.synchronizedList(new ArrayList<Thread>());
+	public boolean wasError;
+
+	/**
+	 * Dieses Objekt erstellt Links.
+	 */
+	public LinkCreator linker;
+
+	PrettyPrinter pp = new PrettyPrinter();
+
+	private Map<Options, String[]> options = new HashMap<Options, String[]>();
+
+	public boolean boolOpt(String opt) {
+		return boolOpt(Options.fromString(opt));
 	}
-	Iterable<? extends JavaFileObject> jFiles =
-	    fileManager.getJavaFileObjectsFromFiles(files);
-	List<String> params = new ArrayList<String>();
-	for(String[] option : root.options()) {
-	    if (javacOptions.contains(option[0])) {
-		params.addAll(Arrays.asList(option));
-	    }
+	public boolean boolOpt(Options opt) {
+		return options.containsKey(opt);
 	}
-	
-	CompilationTask task =
-	    compiler.getTask(null /* TODO: ein Writer, der die Daten
-				     an root.print... weitergibt. */,
-			     fileManager /* TODO: ein FileManager, der zu
-					    schreibende Daten einfach
-					    wegwirft. */,
-			     null /* DiagnosticsListener */,
-			     params /* options - TODO: auswahl an Optionen
-				     von javadoc weitergeben. */,
-			     null /* annotation processors */,
-			     jFiles /* Dateien, die zu kompilieren sind.*/
-			     );
-	if(! (task instanceof JavacTask)) {
-	    // irgend ein anderer Compiler als Javac,
-	    // ohne die passenden Methoden
-	    root.printError("Der CompilerTask " + task + " ist kein "+
-			    "JavacTask, damit können wir leider "+
-			    "die Tree-API nicht verwenden und daher "+
-			    "keinen Quelltext ausdrucken.");
-	    this.includeSource = false;
-	    return;
+
+	public String[] getOpt(String opt) {
+		return getOpt(Options.fromString(opt));
 	}
-	JavacTask jtask = (JavacTask)task;
-	try {
-	    jtask.parse();
-	    jtask.analyze();
+	public String[] getOpt(Options opt) {
+		return options.get(opt);
 	}
-	catch(IOException io) {
-	    throw new RuntimeException(io);
+
+	/**
+	 * Merkt sich die Optionen aus {@code rd}.
+	 */
+	public void setOptions(RootDoc rd) {
+		this.docencoding = Charset.defaultCharset();
+		this.destdir = new File(System.getProperty("user.dir"));
+		this.options.put(Options.doctitle, new String[] {
+				Translator.getString("defaultDoctitle")});
+
+		UniversalLinkCreator lc = new UniversalLinkCreator();
+		this.linker = lc;
+
+		this.root = rd;
+		root.printNotice("Lese Optionen ...");
+		for (String[] op : rd.options()) {
+			root.printNotice("Option: " + Arrays.toString(op));
+			try {
+				Options value = Options.valueOf(op[0].substring(1));
+				options.put(value, Arrays.copyOfRange(op, 1, value.numArgs));
+				if (value.kind != null) {
+					switch (value.kind) {
+					case link:
+						lc.addOption(op);
+						break;
+					default:
+						break;
+					}
+				}
+			} catch (IllegalArgumentException e) {
+				root.printError("Option: " + Arrays.toString(op)
+						+ " is not supported");
+			}
+		}
+
+		String[] arg;
+		if ((arg = getOpt("d")) != null) {
+			this.texdir = this.destdir = new File(arg[0]);
+			destdir.mkdirs();
+		}
+		if ((arg = getOpt("docencoding")) != null) {
+			this.docencoding = Charset.forName(arg[0]);
+		}
+		if (boolOpt("pdfonly")) {
+			this.texdir = new File(this.destdir, "tex");
+			this.texdir.mkdirs();
+			this.options.put(Options.pdf, new String[]{});
+		}
+
+		this.packages = rd.specifiedPackages();
+		Arrays.sort(this.packages, new Comparator<PackageDoc>() {
+			public int compare(PackageDoc a, PackageDoc b) {
+				return String.CASE_INSENSITIVE_ORDER.compare(a.name(), b.name());
+			}
+		});
+		// TODO
+		root.printNotice("... Optionen gelesen.");
 	}
-	
-	this.pp = new PrettyPrinter(jtask.getElements(),
-				    jtask.getTypes(),
-				    Trees.instance(jtask));
-				    
-	root.printNotice("Javac-Task: " + jtask);
-    }
 
-    PrettyPrinter pp;
-
-
-//     public void /* TODO */ getSource(MemberDoc member)
-//     {
-// 	try {
-// 	SourcePosition pos = member.position();
-// 	File file = pos.file();
-// 	JavacTask task = compilationMap.get(file);
-// 	if (task == null) {
-// 	    // TODO
-// 	}
-// 	// Hmm, ist unser CompilationUnitTree wirklich der erste?
-// 	CompilationUnitTree cuTree = task.parse().next();
-	
-
-
-// 	}
-// 	catch (IOException io) {
-// 	    StringBuilder b = new StringBuilder();
-// 	    b.append(io);
-// 	    for(StackTraceElement ste : io.getStackTrace()) {
-// 		b.append("\n");
-// 		b.append(ste);
-// 	    }
-// 	    root.printError(b.toString());
-// 	}
-//     }
-
-
-    /**
-     * Merkt sich die Optionen aus {@code rd}.
-     */
-    public void setOptions(RootDoc rd)
-    {
-	this.docencoding = Charset.defaultCharset();
-	this.destdir = new File(System.getProperty("user.dir"));
-	this.doctitle = "Die Package-Sammlung";
-
-	UniversalLinkCreator lc = new UniversalLinkCreator();
-	this.linker = lc;
-
-	this.root = rd;
-	root.printNotice("Lese Optionen ...");
-	for(String[] op : rd.options()) {
-	    root.printNotice("Option: " + Arrays.toString(op));
-	    if (op[0].equals("-d")) {
-		this.destdir = new File(op[1]);
-		//		root.printNotice("  destdirname: " + destdirname);
-		destdir.mkdirs();
-	    }
-	    if (op[0].equals("-doctitle")) {
-		this.doctitle = op[1];
-	    }
-	    if (op[0].equals("-docencoding")) {
-		this.docencoding = Charset.forName(op[1]);
-	    }
-	    if (op[0].equals("-includesource")) {
-		this.includeSource = true;
-	    }
-	    if(op[0].startsWith("-link")) {
-		lc.addOption(op);
-	    }
+	/**
+	 * Ermittelt, ob dieses Doclet eine Option annimmt, und wenn ja, wie viele
+	 * Argumente sie nimmt.
+	 * 
+	 * @return die Anzahl der Kommandozeilenargumente, die diese Option
+	 *         darstellen, inklusive der Option selbst.
+	 */
+	public int optionLength(String option) {
+		if ("-help".equals(option)) {
+			System.out.println(optionHelp());
+			return 1;
+		}
+		try {
+			return Options.valueOf(option.substring(1)).numArgs;
+		} catch (Exception e) {
+			return 0;
+		}
 	}
-	this.packages = rd.specifiedPackages();
-	// TODO
-	root.printNotice("... Optionen gelesen.");
-    }
 
+	/**
+	 * prints some help about the options. We will load the text from the
+	 * resource bundle.
+	 */
+	public String optionHelp() {
 
-    private Map<String, Integer> optionLengths;
-
-    {
-	optionLengths = new HashMap<String,Integer>();
-	optionLengths.put("-d", 2);
-	optionLengths.put("-includesource", 1);
-	optionLengths.put("-docencoding", 2);
-	optionLengths.put("-doctitle", 2);
-	optionLengths.put("-link", 2);
-	optionLengths.put("-linkhtml", 2);
-	optionLengths.put("-linkoffline", 3);
-	optionLengths.put("-linkofflinehtml", 3);
-	optionLengths.put("-linkfootnotehtml", 4);
-	optionLengths.put("-linkendhtml", 4);
-	optionLengths.put("-linkofflinefootnotehtml", 3);
-	optionLengths.put("-linkofflineendhtml", 3);
-	optionLengths.put("-linkpdf", 2);
-	optionLengths.put("-linkofflinepdf", 3);
-	optionLengths.put("-linkfootnotepdf", 4);
-	optionLengths.put("-linkendpdf", 4);
-	for(String op : javacOptions) {
-	    optionLengths.put(op, 2);
+		ResourceBundle bundle = ResourceBundle.getBundle(
+				"de.dclj.paul.ltxdoclet.help", new HelpTextBundleControl());
+		Charset cs = Charset.defaultCharset();
+		String text = bundle.getString("help");
+		if (!"〈...〉".contentEquals(cs.decode(cs.encode("〈...〉")))) {
+			text = text.replace('〈', '<').replace('〉', '>');
+		}
+		return MessageFormat.format(text, cs);
 	}
-	
-    }
 
-
-
-
-
-    /**
-     * Ermittelt, ob dieses Doclet eine Option annimmt, und
-     * wenn ja, wie viele Argumente sie nimmt.
-     * @return die Anzahl der Kommandozeilenargumente, die
-     *    diese Option darstellen, inklusive der Option selbst.
-     */
-    public int optionLength(String option) {
-	if ("-help".equals(option)) {
-	    System.out.println(optionHelp());
-	    return 1;
+	public boolean validOptions(String[][] options, DocErrorReporter rep) {
+		// TODO
+		return true;
 	}
-	Integer r = optionLengths.get(option);
-	return r == null ? 0 : r;
-    }
 
+	// public WriterFactory getWriterFactory() {
+	// return null;
+	// }
 
-    /**
-     * prints some help about the options.
-     * We will load the text from the resource bundle.
-     */
-    public String optionHelp() {
-        
-        ResourceBundle bundle =
-            ResourceBundle.getBundle("de.dclj.paul.ltxdoclet.help",
-                                     new HelpTextBundleControl());
-        Charset cs = Charset.defaultCharset();
-        String text = bundle.getString("help");
-        if(!"〈...〉".contentEquals(cs.decode(cs.encode("〈...〉")))) {
-            text = text.replace('〈', '<').replace('〉', '>');
-        }
-        return MessageFormat.format(text, cs);
-    }
+	// public Comparator getMemberComparator() {
+	// return null;
+	// }
 
-
-    public boolean validOptions(String[][] options, DocErrorReporter rep) {
-	// TODO
-	return true;
-    }
-
-
-        
-    //     public WriterFactory getWriterFactory() {
-    //  return null;
-    //     }
-
-    //     public Comparator getMemberComparator() {
-    //  return null;
-    //     }
-
-
-    /**
-     * Erstellt den Label-Namen für das angegebene Programmelement.
-     */
-    public String toRefLabel(Doc doc) {
-	if (doc instanceof PackageDoc) {
-	    return doc + "-package";
+	/**
+	 * Erstellt den Label-Namen für das angegebene Programmelement.
+	 */
+	public String toRefLabel(Doc doc) {
+		if (doc instanceof PackageDoc) {
+			return doc + "-package";
+		}
+		if (doc instanceof ClassDoc) {
+			return doc + "-class";
+		}
+		if (doc instanceof RootDoc) {
+			return "over-view";
+		}
+		// TODO
+		return removeSpaces(doc.toString());
 	}
-	if (doc instanceof ClassDoc) {
-	    return doc + "-class";
+
+	private String removeSpaces(String t) {
+		StringBuilder b = new StringBuilder(t);
+		int index = 0;
+		while ((index = b.indexOf(" ", index)) >= 0) {
+			b.deleteCharAt(index);
+		}
+		return b.toString();
 	}
-	if (doc instanceof RootDoc) {
-	    return "over-view";
+
+	String toInputFileName(PackageDoc d) {
+		return d.toString().replace('.', '/');
 	}
-	// TODO
-	return removeSpaces(doc.toString());
-    }
 
-    private String removeSpaces(String t) {
-	StringBuilder b = new StringBuilder(t);
-	int index=0;
-	while((index = b.indexOf(" ", index))>=0) {
-	    b.deleteCharAt(index);
+	File toOutputFileName(PackageDoc d) {
+		String newName = d.toString().replace('.', '/');
+		File dir = new File(destdir, newName);
+		dir.mkdirs();
+		return dir;
 	}
-	return b.toString();
-    }
-
-
-    /**
-     * Erstellt den Label-Namen für das angegebene Programmelement.
-     */
-    public String toRefLabel(Element element) {
-	switch(element.getKind()) {
-	case CLASS:
-	case INTERFACE:
-	case ENUM:
-	case ANNOTATION_TYPE:
-	    return element + "-class";
-	case PACKAGE:
-	    return element + "-package";
-	default:
-	    return element.toString();
-	}
-    }
-
-
-
-
-    String toInputFileName(PackageDoc d)
-    {
-        return d.toString().replace('.', '/');
-    }
-        
-    File toOutputFileName(PackageDoc d)
-    {
-        String newName = d.toString().replace('.', '/');
-        File dir =  new File(destdir, newName);
-        dir.mkdirs();
-        return dir;
-    }
-
-
-
-
 
 }

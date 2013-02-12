@@ -51,7 +51,6 @@ public class TableInfo {
     private int colcnt = 0; 
     private boolean border = false;
     private boolean colopen = false;
-    private Map<String,String> props;
     private int bordwid;
     private boolean parboxed;
     private boolean rowopen;
@@ -79,7 +78,6 @@ public class TableInfo {
      */
     public TableInfo( Map<String,String> p, StringBuilder ret, String table, int off )
     {
-        props = p;
         if( p == null )
             return;
         tblno = tblcnt++;
@@ -211,7 +209,6 @@ public class TableInfo {
             ret.append("\\multicolumn{"+span+"}{" );
             if( border && colcnt == 0)
                 ret.append("|");
-            String cc = countName(colcnt);
             if( align != null ) {
                 String h = align.substring(0,1);
                 if( "rR".indexOf(h) >= 0 )
